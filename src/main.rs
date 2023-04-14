@@ -35,17 +35,19 @@ fn main() {
         let ice_time: i32 = getline("请输入冰时间（不填直接换行）: ").trim().parse().unwrap_or(0);
         let time: i32 = getline("请输入目标时间: ").trim().parse().unwrap();
         let other = getline("请输入关注的坐标范围（可不填，可填单个坐标，可填用空格分隔的左右边界）: ");
-        let other: Vec<usize> = other.split_whitespace().map(|x|
-            x.parse::<i32>().unwrap().clamp(0, 879) as usize).collect();
+        let mut other: Vec<usize> = other.split_whitespace().map(|x|
+            x.parse::<i32>().unwrap() as usize).collect();
         let result = calculate_pos_distribution(&ZOMBIE_DB[&zombie_type], ice_time, time);
+        let first = result.iter().position(|&x| x > 1e-12).unwrap();
+        let last = 879 - result.iter().rev().position(|&x| x > 1e-12).unwrap();
         if other.len() == 1 {
             println!("{}: {}", other[0], result[other[0]]);
         } else if other.len() == 2 {
+            other[0] = max(other[0], first);
+            other[1] = min(other[1], last);
             let sum: f64 = result[other[0]..=other[1]].iter().sum();
             println!("{}-{}: {}", other[0], other[1], if sum > 1.0-1e-12 {1.0} else {sum});
         } else {
-            let first = result.iter().position(|&x| x > 1e-12).unwrap();
-            let last = 879 - result.iter().rev().position(|&x| x > 1e-12).unwrap();
             print!("{}-{}: [", first, last);
             for x in &result[first..last] {
                 print!("{:.3e}, ", x);

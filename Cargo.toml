@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 csv = "1.1.6"
 lazy_static = "1.4.0"
+libm = "0.2.6"
 num-integer = "0.1.45"
 num-rational = { version = "0.4.1", features = ["std"] }
 num-traits = "0.2.15"
