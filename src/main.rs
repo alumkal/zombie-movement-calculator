@@ -38,15 +38,21 @@ fn main() {
         let mut other: Vec<usize> = other.split_whitespace().map(|x|
             x.parse::<i32>().unwrap() as usize).collect();
         let result = calculate_pos_distribution(&ZOMBIE_DB[&zombie_type], ice_time, time);
-        let first = result.iter().position(|&x| x > 1e-12).unwrap();
-        let last = 879 - result.iter().rev().position(|&x| x > 1e-12).unwrap();
+        assert!((result.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+        let dc = matches!(ZOMBIE_DB[&zombie_type].movement_type, MovementType::DanceCheat);
+        let tol = if dc {1e-9} else {1e-12};
+        let first = result.iter().position(|&x| x > tol).unwrap();
+        let last = 879 - result.iter().rev().position(|&x| x > tol).unwrap();
         if other.len() == 1 {
             println!("{}: {}", other[0], result[other[0]]);
         } else if other.len() == 2 {
-            other[0] = max(other[0], first);
-            other[1] = min(other[1], last);
-            let sum: f64 = result[other[0]..=other[1]].iter().sum();
-            println!("{}-{}: {}", other[0], other[1], if sum > 1.0-1e-12 {1.0} else {sum});
+            other[0] = max(other[0], if dc {0} else {first});
+            other[1] = min(other[1], if dc {879} else {last});
+            let mut sum: f64 = result[other[0]..=other[1]].iter().sum();
+            if !dc && sum > 1.0 - tol {
+                sum = 1.0;
+            }
+            println!("{}-{}: {}", other[0], other[1], sum);
         } else {
             print!("{}-{}: [", first, last);
             for x in &result[first..last] {
