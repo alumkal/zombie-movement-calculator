@@ -32,33 +32,33 @@ fn main() {
             continue;
         }
         let zombie_type = zombie_type.unwrap();
-        let ice_time: i32 = getline("请输入冰时间（不填直接换行）: ").trim().parse().unwrap_or(0);
-        let time: i32 = getline("请输入目标时间: ").trim().parse().unwrap();
+        let ice_time: i64 = getline("请输入冰时间（不填直接换行）: ").trim().parse().unwrap_or(0);
+        let time: i64 = getline("请输入目标时间: ").trim().parse().unwrap();
         let other = getline("请输入关注的坐标范围（可不填，可填单个坐标，可填用空格分隔的左右边界）: ");
-        let mut other: Vec<usize> = other.split_whitespace().map(|x|
-            x.parse::<i32>().unwrap() as usize).collect();
-        let result = calculate_pos_distribution(&ZOMBIE_DB[&zombie_type], ice_time, time);
-        assert!((result.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+        let other: Vec<usize> = other.split_whitespace().map(|x| x.parse::<usize>().unwrap()).collect();
+        let d = calculate_pos_distribution(&ZOMBIE_DB[&zombie_type], ice_time, time);
+        assert!((d.dist.iter().sum::<f64>() - 1.0).abs() < 1e-12);
         let dc = matches!(ZOMBIE_DB[&zombie_type].movement_type, MovementType::DanceCheat);
-        let tol = if dc {1e-9} else {1e-12};
-        let first = result.iter().position(|&x| x > tol).unwrap();
-        let last = 879 - result.iter().rev().position(|&x| x > tol).unwrap();
         if other.len() == 1 {
-            println!("{}: {}", other[0], result[other[0]]);
+            println!("{}: {}", other[0], d.dist[other[0]]);
         } else if other.len() == 2 {
-            other[0] = max(other[0], if dc {0} else {first});
-            other[1] = min(other[1], if dc {879} else {last});
-            let mut sum: f64 = result[other[0]..=other[1]].iter().sum();
-            if !dc && sum > 1.0 - tol {
+            let mut sum: f64 = d.dist[other[0]..=other[1]].iter().sum();
+            if sum > 1.0 - (if dc {1e-15} else {1e-12}) {
                 sum = 1.0;
             }
             println!("{}-{}: {}", other[0], other[1], sum);
         } else {
-            print!("{}-{}: [", first, last);
-            for x in &result[first..last] {
+            let tol = if dc {1e-9} else {1e-12};
+            let first = d.dist.iter().position(|&x| x > tol).unwrap();
+            let last = 879 - d.dist.iter().rev().position(|&x| x > tol).unwrap();
+            assert!((d.max as usize) - (d.min as usize) == last - first);
+            let pos_min = (d.min * 1000.0).floor() / 1000.0;
+            let pos_max = (d.max * 1000.0).ceil() / 1000.0;
+            print!("{:.03}-{:.03}: [", pos_min, pos_max);
+            for x in &d.dist[first..last] {
                 print!("{:.3e}, ", x);
             }
-            println!("{:.3e}]", result[last]);
+            println!("{:.3e}]", d.dist[last]);
         }
     }
 }

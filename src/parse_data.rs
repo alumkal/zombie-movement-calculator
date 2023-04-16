@@ -3,10 +3,10 @@ use crate::common::*;
 #[derive(serde::Deserialize)]
 struct RawZombieData {
     name: String,
-    spawn_l: i32,
-    spawn_r: i32,
-    spawn_hugewave_l: i32,
-    spawn_hugewave_r: i32,
+    spawn_l: i64,
+    spawn_r: i64,
+    spawn_hugewave_l: i64,
+    spawn_hugewave_r: i64,
     movement_type: String,
     movement_args: Option<String>,
     speed_l: String,

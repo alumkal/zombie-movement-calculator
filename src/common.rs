@@ -40,12 +40,12 @@ pub enum MovementType {
     Regular(Vec<Num>, Vec<Num>),
     DanceCheat,
     Dancing(Vec<Num>),
-    Zomboni
+    Zomboni,
 }
 
 pub struct ZombieData {
-    pub spawn: (i32, i32),
-    pub spawn_hugewave: (i32, i32),
+    pub spawn: (i64, i64),
+    pub spawn_hugewave: (i64, i64),
     pub movement_type: MovementType,
     pub speed: (Num, Num),
     pub freeze_immune: bool,
@@ -58,4 +58,10 @@ pub struct ZombieData {
     pub summon_weight_hugewave: u32,
     pub if_generate_in: (bool, bool),
     pub if_generate_in_wave1to5: (bool, bool),
+}
+
+pub struct PosDistribution {
+    pub dist: [f64; 880],
+    pub min: f64,
+    pub max: f64,
 }
