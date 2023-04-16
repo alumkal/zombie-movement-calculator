@@ -13,13 +13,14 @@ lazy_static::lazy_static! {
 
 fn getline(prompt: &str) -> String {
     print!("{}", prompt);
-    std::io::stdout().flush();
+    std::io::stdout().flush().unwrap();
     let mut result = String::new();
     std::io::stdin().read_line(&mut result).unwrap();
     return result;
 }
 
 fn main() {
+    rayon::ThreadPoolBuilder::new().stack_size(16 << 20).build_global().unwrap();
     loop {
         let zombie_type = getline("请输入僵尸类型: ");
         let zombie_type = zombie_type.trim();

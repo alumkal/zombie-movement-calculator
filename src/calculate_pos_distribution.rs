@@ -5,7 +5,7 @@ use rayon::prelude::*;
 
 fn calc_time(data: &ZombieData, ice_time: i64, time: i64) -> (i64, i64) {
     let norm_time = ice_time - 1; // 僵尸原速移动的时间
-    if ice_time == 0 || ice_time > time || data.chill_immune { (time.into(), 0) }
+    if ice_time == 0 || ice_time > time || data.chill_immune { (time, 0) }
     else if data.freeze_immune { (norm_time + max(time - norm_time - 1999, 0), min(time - norm_time, 1999)) }
     else { (norm_time + max(time - norm_time - 1999, 0), max(min(time - norm_time, 1999) - 399, 0)) }
 }
@@ -126,7 +126,6 @@ fn calculate_animation(data: &ZombieData, ice_time: i64, time: i64, animation: O
     let k_max = data.speed.1 * speed_scale_factor / 2;
     // k在[k_segments[i], k_segments[i+1])变化时dx正比于k
     let k_segments = fraction_between(n, k_min, k_max);
-
     let dis_scale_factor = Num::new(anim_len + 1, anim_len);
     // 举例：chill_time = 100时，实际减速时间取到最小值0的概率是101/201(冰500-600cs)，是取到其他数值的101倍
     let minimum_chill_multiplier = max(200 - chill_time_max + 1, 1);
