@@ -1,6 +1,7 @@
 use crate::common::*;
 use libm::erfc;
 use num_traits::ToPrimitive;
+use rayon::prelude::*;
 
 fn calc_time(data: &ZombieData, ice_time: i64, time: i64) -> (i64, i64) {
     let norm_time = ice_time - 1; // 僵尸原速移动的时间
@@ -129,14 +130,13 @@ fn calculate_animation(data: &ZombieData, ice_time: i64, time: i64, animation: O
     let dis_scale_factor = Num::new(anim_len + 1, anim_len);
     // 举例：chill_time = 100时，实际减速时间取到最小值0的概率是101/201(冰500-600cs)，是取到其他数值的101倍
     let minimum_chill_multiplier = max(200 - chill_time_max + 1, 1);
-    // 支持[l, r)区间加的差分数组
-    let mut contrib = [0.0; 880];
-    let mut dx_global_min = Num::new(1000, 1);
-    let mut dx_global_max = Num::new(0, 1);
-    for i in 0..(k_segments.len() - 1) {
-        let l = k_segments[i];
-        let r = k_segments[i + 1];
-        // shift = dx / k
+    let (contrib, dx_global_min, dx_global_max) = k_segments[0..(k_segments.len() - 1)]
+        .par_iter()
+        .zip(k_segments[1..(k_segments.len())].par_iter())
+        .map(|(l, r)| {
+        let mut contrib = [0.0; 880];
+        let mut dx_global_min = Num::new(1000, 1);
+        let mut dx_global_max = Num::new(0, 1);
         let mut dx_min = Num::new(0, 1);
         let mut dx_max = Num::new(0, 1);
         let mut phase = l * 2;
@@ -153,8 +153,8 @@ fn calculate_animation(data: &ZombieData, ice_time: i64, time: i64, animation: O
             phase += l;
         }
         for i in 0..=min(chill_time_max, 200) {
-            dx_global_max = max(dx_global_max, dx_max);
             dx_global_min = min(dx_global_min, dx_min);
+            dx_global_max = max(dx_global_max, dx_max);
             // 逐个更新不同冻结时间的期望
             let spawn_span = data.spawn.1 - data.spawn.0 + 1;
             let weight = Num::new(if i == 0 {minimum_chill_multiplier} else {1}, 201) / spawn_span
@@ -177,7 +177,15 @@ fn calculate_animation(data: &ZombieData, ice_time: i64, time: i64, animation: O
             dx_max += (shift * r * 16384).round() / 16384;
             phase += l;
         }
-    }
+        (contrib, dx_global_min, dx_global_max)
+    }).reduce(|| { ([0.0; 880], Num::new(1000, 1), Num::new(0, 1)) },
+        |(contrib, dx_global_min, dx_global_max), (contrib_, dx_global_min_, dx_global_max_)| {
+        let mut contrib = contrib;
+        for i in 0..880 {
+            contrib[i] += contrib_[i];
+        }
+        (contrib, min(dx_global_min, dx_global_min_), max(dx_global_max, dx_global_max_))
+    });
     let mut result = PosDistribution {
         dist: [0.0; 880],
         min: (Num::new(data.spawn.0, 1) - dx_global_max).to_f64().unwrap(),
