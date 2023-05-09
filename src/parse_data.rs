@@ -31,7 +31,7 @@ fn decimal_to_rational(decimal: &str) -> Num {
     return match decimal.find('.') {
         Some(pos) => {
             let negative = decimal.starts_with('-');
-            let int_part = decimal[(negative as usize)..pos].parse::<i64>().unwrap();
+            let int_part = decimal[negative.into()..pos].parse::<i64>().unwrap();
             let frac_part = decimal[pos+1..].parse::<i64>().unwrap();
             let den = i64::pow(10, (decimal.len() - pos - 1) as u32);
             let num = (if negative {-1} else {1}) * (int_part * den + frac_part);
@@ -87,8 +87,8 @@ fn convert_zombie_data(data: RawZombieData) -> ZombieData {
 
 pub fn get_zombie_db(file_content: &[u8]) -> HashMap<ZombieType, ZombieData> {
     let mut csv_reader = csv::Reader::from_reader(file_content);
-    return csv_reader.deserialize()
-                     .map(|x: Result<RawZombieData, _>| x.unwrap())
+    return csv_reader.deserialize::<RawZombieData>()
+                     .map(Result::unwrap)
                      .map(|x| (ZombieType::from_str(&x.name).expect(&x.name), convert_zombie_data(x)))
                      .collect();
 }

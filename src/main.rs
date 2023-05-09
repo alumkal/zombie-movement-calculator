@@ -1,3 +1,7 @@
+#![warn(clippy::pedantic)]
+#![allow(clippy::needless_return, clippy::redundant_field_names, clippy::cast_possible_truncation,
+         clippy::cast_precision_loss, clippy::cast_sign_loss, clippy::wildcard_imports)]
+
 mod common;
 mod calculate_pos_distribution;
 mod parse_data;
@@ -12,7 +16,7 @@ lazy_static::lazy_static! {
 }
 
 fn getline(prompt: &str) -> String {
-    print!("{}", prompt);
+    print!("{prompt}");
     std::io::stdout().flush().unwrap();
     let mut result = String::new();
     std::io::stdin().read_line(&mut result).unwrap();
@@ -38,7 +42,8 @@ fn main() {
         let other = getline("请输入关注的坐标范围（可不填，可填单个坐标，可填用空格分隔的左右边界）: ");
         let other: Vec<usize> = other.split_whitespace().map(|x| x.parse::<usize>().unwrap()).collect();
         let d = calculate_pos_distribution(&ZOMBIE_DB[&zombie_type], ice_time, time);
-        assert!((d.dist.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+        let prob_sum: f64 = d.dist.iter().sum();
+        assert!((prob_sum - 1.0).abs() < 1e-12, "prob_sum = {prob_sum}");
         let dc = matches!(ZOMBIE_DB[&zombie_type].movement_type, MovementType::DanceCheat);
         if other.len() == 1 {
             println!("{}: {}", other[0], d.dist[other[0]]);
@@ -55,9 +60,9 @@ fn main() {
             assert!((d.max as usize) - (d.min as usize) == last - first);
             let pos_min = (d.min * 1000.0).floor() / 1000.0;
             let pos_max = (d.max * 1000.0).ceil() / 1000.0;
-            print!("{:.03}-{:.03}: [", pos_min, pos_max);
+            print!("{pos_min:.03}-{pos_max:.03}: [");
             for x in &d.dist[first..last] {
-                print!("{:.3e}, ", x);
+                print!("{x:.3e}, ");
             }
             println!("{:.3e}]", d.dist[last]);
         }
