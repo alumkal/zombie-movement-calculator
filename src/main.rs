@@ -1,6 +1,7 @@
 #![warn(clippy::pedantic)]
-#![allow(clippy::needless_return, clippy::redundant_field_names, clippy::cast_possible_truncation,
-         clippy::cast_precision_loss, clippy::cast_sign_loss, clippy::wildcard_imports)]
+#![allow(clippy::needless_return, clippy::redundant_field_names, clippy::if_not_else,
+         clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::cast_sign_loss,
+         clippy::wildcard_imports)]
 
 mod common;
 mod calculate_pos_distribution;
@@ -16,8 +17,8 @@ lazy_static::lazy_static! {
 }
 
 fn getline(prompt: &str) -> String {
-    print!("{prompt}");
-    std::io::stdout().flush().unwrap();
+    eprint!("{prompt}");
+    std::io::stderr().flush().unwrap();
     let mut result = String::new();
     std::io::stdin().read_line(&mut result).unwrap();
     return result;
@@ -33,7 +34,7 @@ fn main() {
         }
         let zombie_type = ZombieType::from_str(zombie_type);
         if zombie_type.is_err() {
-            println!("请确认僵尸类型是否拼写正确");
+            eprintln!("请确认僵尸类型是否拼写正确");
             continue;
         }
         let zombie_type = zombie_type.unwrap();
@@ -59,7 +60,7 @@ fn main() {
             let last = 879 - d.dist.iter().rev().position(|&x| x > tol).unwrap();
             assert!((d.max as usize) - (d.min as usize) == last - first);
             let pos_min = (d.min * 1000.0).floor() / 1000.0;
-            let pos_max = (d.max * 1000.0).ceil() / 1000.0;
+            let pos_max = (d.max * 1000.0).floor() / 1000.0;
             print!("{pos_min:.03}-{pos_max:.03}: [");
             for x in &d.dist[first..last] {
                 print!("{x:.3e}, ");

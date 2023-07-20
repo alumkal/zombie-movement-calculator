@@ -3,11 +3,12 @@ use libm::erfc;
 use num_traits::ToPrimitive;
 use rayon::prelude::*;
 
-fn calc_time(data: &ZombieData, ice_time: i64, time: i64) -> (i64, i64) {
-    let norm_time = ice_time - 1; // 僵尸原速移动的时间
-    if ice_time == 0 || ice_time > time || data.chill_immune { (time, 0) }
-    else if data.freeze_immune { (norm_time + max(time - norm_time - 1999, 0), min(time - norm_time, 1999)) }
-    else { (norm_time + max(time - norm_time - 1999, 0), max(min(time - norm_time, 1999) - 399, 0)) }
+// 原速 out.0 cs + 减速 [out.1-200, out.1] cs + 原速 out.2 cs
+fn calc_time(data: &ZombieData, ice_time: i64, time: i64) -> (i64, i64, i64) {
+    let norm_time = ice_time - 1;
+    if ice_time == 0 || ice_time > time || data.chill_immune { (time, 0, 0) }
+    else if data.freeze_immune { (norm_time, min(time - norm_time, 1999), max(time - norm_time - 1999, 0)) }
+    else { (norm_time, max(min(time - norm_time, 1999) - 399, 0), max(time - norm_time - 1999, 0)) }
 }
 
 fn calculate_constant(data: &ZombieData, ice_time: i64, time: i64) -> PosDistribution {
@@ -16,14 +17,14 @@ fn calculate_constant(data: &ZombieData, ice_time: i64, time: i64) -> PosDistrib
     let speed_min_chill = (data.speed.0 * Num::new(2, 5) * 16384).round() / 16384;
     let speed_max_chill = (data.speed.1 * Num::new(2, 5) * 16384).round() / 16384;
     let mut contrib = [0.0; 880];
-    let (norm_time, chill_time_max) = calc_time(data, ice_time, time);
+    let (norm_time, chill_time_max, norm_time2) = calc_time(data, ice_time, time);
     let chill_time_min = if data.freeze_immune {chill_time_max} else {max(chill_time_max - 200, 0)};
     let minimum_chill_multiplier = 201 - (chill_time_max - chill_time_min);
     let spawn_span = data.spawn.1 - data.spawn.0 + 1;
     for chill_time in chill_time_min..=chill_time_max {
         let weight = Num::new(if chill_time == chill_time_min {minimum_chill_multiplier} else {1}, 201) / spawn_span;
-        let dx_min = speed_min_norm * norm_time + speed_min_chill * chill_time;
-        let dx_max = speed_max_norm * norm_time + speed_max_chill * chill_time;
+        let dx_min = speed_min_norm * (norm_time + norm_time2) + speed_min_chill * chill_time;
+        let dx_max = speed_max_norm * (norm_time + norm_time2) + speed_max_chill * chill_time;
         let pos_min = data.spawn.1 - dx_max.ceil().to_integer();
         let pos_max = data.spawn.1 - dx_min.ceil().to_integer();
         if pos_min == pos_max {
@@ -53,20 +54,20 @@ fn calculate_constant(data: &ZombieData, ice_time: i64, time: i64) -> PosDistrib
 
 fn prob_between(l: f64, r: f64) -> f64 {
     if l.abs() > r.abs() { prob_between(-r, -l) }
-    else { (erfc(l / 2.0_f64.sqrt()) - erfc(r / 2.0_f64.sqrt())) / 2.0 }
+    else { (erfc(l / std::f64::consts::SQRT_2) - erfc(r / std::f64::consts::SQRT_2)) / 2.0 }
 }
 
 fn calculate_dancecheat(data: &ZombieData, ice_time: i64, time: i64) -> PosDistribution {
     let k = data.speed.0.to_f64().unwrap();
     let mut contrib = [0.0; 880];
-    let (norm_time, chill_time_max) = calc_time(data, ice_time, time);
+    let (norm_time, chill_time_max, norm_time2) = calc_time(data, ice_time, time);
     let chill_time_min = if data.freeze_immune {chill_time_max} else {max(chill_time_max - 200, 0)};
     let minimum_chill_multiplier = 201 - (chill_time_max - chill_time_min);
     let spawn_span = data.spawn.1 - data.spawn.0 + 1;
     for chill_time in chill_time_min..=chill_time_max {
         let weight = (if chill_time == chill_time_min {minimum_chill_multiplier as f64} else {1.0}) / 201.0
         / spawn_span as f64;
-        let norm_time = norm_time as f64;
+        let norm_time = (norm_time + norm_time2) as f64;
         let chill_time = chill_time as f64;
         let mean = (data.spawn.1 as f64) - k * (norm_time + chill_time / 2.0);
         let std = k * (49.0 / 2700.0 * (norm_time + chill_time / 4.0)).sqrt();
@@ -85,7 +86,7 @@ fn calculate_dancecheat(data: &ZombieData, ice_time: i64, time: i64) -> PosDistr
     return PosDistribution {
         dist: dist,
         min: dist.iter().position(|&x| x > 1e-9).unwrap() as f64,
-        max: 879.999 - dist.iter().rev().position(|&x| x > 1e-9).unwrap() as f64
+        max: 880.0 - 1.0 / 16384.0 - dist.iter().rev().position(|&x| x > 1e-9).unwrap() as f64
     };
 }
 
@@ -108,8 +109,23 @@ fn fraction_between(n: i64, l: Num, r: Num) -> Vec<Num> {
     return result;
 }
 
+// arr[x0] + arr[x0 + k] + ... + arr[x0 + (n - 1) * k]
+fn total_shift(arr: &Vec<Num>, n: i64, k: Num, x0: Num) -> Num {
+    let n = Num::new(n, 1);
+    let mut result = Num::new(0, 1);
+    let first = x0.floor().to_integer();
+    let last = (x0 + (n - 1) * k).floor().to_integer();
+    let mut cur = Num::new(0, 1);
+    for i in first..last {
+        let next = ((Num::new(i + 1, 1) - x0) / k).ceil();
+        result += arr[i as usize % arr.len()] * (next - cur);
+        cur = next;
+    }
+    return result + arr[last as usize % arr.len()] * (n - cur);
+}
+
 fn calculate_animation(data: &ZombieData, ice_time: i64, time: i64, animation: Option<&Vec<Num>>) -> PosDistribution {
-    let animation = animation.unwrap_or(match &data.movement_type {
+    let animation = animation.unwrap_or_else(|| match &data.movement_type {
         MovementType::Animation(x) | MovementType::Dancing(x) => x,
         _ => unreachable!()
     });
@@ -117,8 +133,7 @@ fn calculate_animation(data: &ZombieData, ice_time: i64, time: i64, animation: O
     let total: Num = animation.iter().sum();
     let speed_scale_factor = Num::new(47, 100) * anim_len / total;
     let dis_scale_factor = Num::new(anim_len + 1, anim_len);
-    // 原速 norm_time cs, 减速 [chill_time_max-200, chill_time_max] cs
-    let (norm_time, chill_time_max) = calc_time(data, ice_time, time);
+    let (norm_time, chill_time_max, norm_time2) = calc_time(data, ice_time, time);
     let n = norm_time * 2 + chill_time_max;
     // k 是减速状态下相位的变化率
     let k_min = data.speed.0 * speed_scale_factor / 2;
@@ -127,31 +142,32 @@ fn calculate_animation(data: &ZombieData, ice_time: i64, time: i64, animation: O
     let k_segments =
         if chill_time_max != 0 { fraction_between(n, k_min, k_max) }
         else { fraction_between(n / 2, k_min * 2, k_max * 2).iter().map(|x| x / 2).collect() };
-    // 举例：chill_time = 100 时，实际减速时间取到最小值 0 的概率是 101/201 (冰 500-600cs)，是取到其他数值的 101 倍
+    // 举例：chill_time_max = 100 时，实际减速时间取到最小值 0 的概率是 101/201 (冰 500-600cs)，是取到其他数值的 101 倍
     let minimum_chill_multiplier = max(200 - chill_time_max + 1, 1);
-    let (contrib, dx_global_min, dx_global_max) = k_segments[0..(k_segments.len() - 1)]
-        .par_iter()
-        .zip(k_segments[1..(k_segments.len())].par_iter())
-        .map(|(l, r)| {
+    let (contrib, dx_global_min, dx_global_max) = k_segments
+        .par_windows(2)
+        .map(|lr| {
+        let (l, r) = (lr[0], lr[1]);
         let mut contrib = [0.0; 880];
         let mut dx_global_min = Num::new(1000, 1);
         let mut dx_global_max = Num::new(0, 1);
-        let mut dx_min = Num::new(0, 1);
-        let mut dx_max = Num::new(0, 1);
+        let mut shift_min = Num::new(0, 1);
+        let mut shift_max = Num::new(0, 1);
         let mut phase = l * 2;
-        for _ in 0..norm_time {
-            let shift = animation[phase.to_integer() as usize % animation.len()] * dis_scale_factor * 2;
-            dx_min += (shift * l * 16384).round() / 16384;
-            dx_max += (shift * r * 16384).round() / 16384;
-            phase += l * 2;
-        }
-        for _ in 0..max(chill_time_max - 200, 0) {
-            let shift = animation[phase.to_integer() as usize % animation.len()] * dis_scale_factor;
-            dx_min += (shift * l * 16384).round() / 16384;
-            dx_max += (shift * r * 16384).round() / 16384;
-            phase += l;
-        }
+        let shift_norm_l: Vec<_> = animation.iter().map(|x| (x * dis_scale_factor * l * 32768).round() / 16384).collect();
+        let shift_norm_r: Vec<_> = animation.iter().map(|x| (x * dis_scale_factor * r * 32768).round() / 16384).collect();
+        let shift_l: Vec<_> = animation.iter().map(|x| (x * dis_scale_factor * l * 16384).round() / 16384).collect();
+        let shift_r: Vec<_> = animation.iter().map(|x| (x * dis_scale_factor * r * 16384).round() / 16384).collect();
+        shift_min += total_shift(&shift_norm_l, norm_time, l * 2, phase);
+        shift_max += total_shift(&shift_norm_r, norm_time, l * 2, phase);
+        phase += l * 2 * norm_time;
+        let chill_time_base = max(chill_time_max - 200, 0);
+        shift_min += total_shift(&shift_l, chill_time_base, l, phase);
+        shift_max += total_shift(&shift_r, chill_time_base, l, phase);
+        phase += l * chill_time_base;
         for i in 0..=min(chill_time_max, 200) {
+            let dx_min = shift_min + total_shift(&shift_norm_l, norm_time2, l * 2, phase);
+            let dx_max = shift_max + total_shift(&shift_norm_r, norm_time2, l * 2, phase);
             // 逐个更新不同冻结时间的期望
             dx_global_min = min(dx_global_min, dx_min);
             dx_global_max = max(dx_global_max, dx_max);
@@ -170,9 +186,8 @@ fn calculate_animation(data: &ZombieData, ice_time: i64, time: i64, animation: O
                     };
                 contrib[(data.spawn.1 - dx) as usize] += (weight * ratio).to_f64().unwrap();
             }
-            let shift = animation[phase.to_integer() as usize % animation.len()] * dis_scale_factor;
-            dx_min += (shift * l * 16384).round() / 16384;
-            dx_max += (shift * r * 16384).round() / 16384;
+            shift_min += shift_l[phase.to_integer() as usize % animation.len()];
+            shift_max += shift_r[phase.to_integer() as usize % animation.len()];
             phase += l;
         }
         (contrib, dx_global_min, dx_global_max)
@@ -214,7 +229,7 @@ fn calculate_regular(data: &ZombieData, ice_time: i64, time: i64) -> PosDistribu
 }
 
 fn calculate_dancing(data: &ZombieData, ice_time: i64, time: i64) -> PosDistribution {
-    let (norm_time, _) = calc_time(data, ice_time, time);
+    let (norm_time, _, _) = calc_time(data, ice_time, time);
     if norm_time < 299 {
         return calculate_animation(data, 0, norm_time, None);
     }

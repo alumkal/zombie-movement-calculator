@@ -43,15 +43,14 @@ fn decimal_to_rational(decimal: &str) -> Num {
 
 fn parse_animation(raw: &str) -> Vec<Num> {
     let nums = raw.split(',').map(decimal_to_rational).collect::<Vec<_>>();
-    return nums[1..].iter()
-                    .zip(nums[..nums.len() - 1].iter())
-                    .map(|(x, y)| x - y)
-                    .collect::<Vec<_>>();
+    return nums.windows(2)
+               .map(|x| x[1] - x[0])
+               .collect::<Vec<_>>();
 }
 
 fn parse_regular(raw: &str) -> (Vec<Num>, Vec<Num>) {
     let sep = raw.find(';').unwrap();
-    return (parse_animation(&raw[..sep]), parse_animation(&raw[sep + 1..]));
+    return (parse_animation(&raw[..sep]), parse_animation(&raw[sep+1..]));
 }
 
 fn convert_zombie_data(data: RawZombieData) -> ZombieData {
