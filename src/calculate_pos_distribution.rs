@@ -39,8 +39,8 @@ fn calculate_constant(data: &ZombieData, ice_time: i64, time: i64) -> PosDistrib
             }
         }
     }
-    let global_dx_min = speed_min_norm * norm_time + speed_min_chill * chill_time_min;
-    let global_dx_max = speed_max_norm * norm_time + speed_max_chill * chill_time_max;
+    let global_dx_min = speed_min_norm * norm_time + speed_min_chill * chill_time_min + speed_min_norm * norm_time2;
+    let global_dx_max = speed_max_norm * norm_time + speed_max_chill * chill_time_max + speed_max_norm * norm_time2;
     let mut result = PosDistribution {
         dist: [0.0; 880],
         min: (Num::new(data.spawn.0, 1) - global_dx_max).to_f64().unwrap(),
