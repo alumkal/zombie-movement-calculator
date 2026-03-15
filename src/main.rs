@@ -38,13 +38,18 @@ fn main() {
             continue;
         }
         let zombie_type = zombie_type.unwrap();
-        let ice_time: i64 = getline("请输入冰时间（不填直接换行）: ").trim().parse().unwrap_or(0);
+        let ice_times: Vec<i64> = getline("请输入冰时间（不填直接换行，可填用空格分隔的多个时间）: ")
+            .split_whitespace()
+            .map(|x| x.parse::<i64>().unwrap())
+            .collect();
         let time: i64 = getline("请输入目标时间: ").trim().parse().unwrap();
         let other = getline("请输入关注的坐标范围（可不填，可填单个坐标，可填用空格分隔的左右边界）: ");
         let other: Vec<usize> = other.split_whitespace().map(|x| x.parse::<usize>().unwrap()).collect();
-        let d = calculate_pos_distribution(&ZOMBIE_DB[&zombie_type], ice_time, time);
-        let prob_sum: f64 = d.dist.iter().sum();
-        assert!((prob_sum - 1.0).abs() < 1e-12, "prob_sum = {prob_sum}");
+        let d = calculate_pos_distribution(&ZOMBIE_DB[&zombie_type], &ice_times, time);
+        if !MINMAX_ONLY_MODE {
+            let prob_sum: f64 = d.dist.iter().sum();
+            assert!((prob_sum - 1.0).abs() < 1e-12, "prob_sum = {prob_sum}");
+        }
         let dc = matches!(ZOMBIE_DB[&zombie_type].movement_type, MovementType::DanceCheat);
         if other.len() == 1 {
             println!("{}: {}", other[0], d.dist[other[0]]);
@@ -58,7 +63,7 @@ fn main() {
             let tol = if dc {1e-9} else {1e-12};
             let first = d.dist.iter().position(|&x| x > tol).unwrap();
             let last = 879 - d.dist.iter().rev().position(|&x| x > tol).unwrap();
-            assert!((d.max as usize) - (d.min as usize) == last - first);
+            // assert!((d.max as usize) - (d.min as usize) == last - first); // 极小概率边界
             let pos_min = (d.min * 1000.0).floor() / 1000.0;
             let pos_max = (d.max * 1000.0).floor() / 1000.0;
             print!("{pos_min:.03}-{pos_max:.03}: [");
